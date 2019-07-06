@@ -1,6 +1,9 @@
 package com.example.fuseExample;
 
+import org.apache.activemq.ActiveMQConnectionFactory;
+import org.apache.activemq.camel.component.ActiveMQComponent;
 import org.apache.camel.Exchange;
+import org.apache.camel.LoggingLevel;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.model.dataformat.CsvDataFormat;
 import org.apache.camel.model.dataformat.JsonLibrary;
@@ -9,6 +12,7 @@ import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 
+import javax.jms.ConnectionFactory;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -22,6 +26,14 @@ public class MySpringBootRouter extends RouteBuilder {
     }
 
     @Bean
+    public ActiveMQComponent activemq() {
+        ConnectionFactory connectionFactory = new ActiveMQConnectionFactory("vm://localhost?broker.persistent=false");
+        ActiveMQComponent activemq = new ActiveMQComponent();
+        activemq.setConnectionFactory(connectionFactory);
+        return activemq;
+    }
+
+    @Bean
     public NoopHostnameVerifier hostnameVerifier() {
         return new NoopHostnameVerifier();
     }
@@ -30,12 +42,14 @@ public class MySpringBootRouter extends RouteBuilder {
     public void configure() {
         AggregationStrategy aggregation = new NamesAggregationStrategy();
         AggregationStrategy csvAggregation = new CvsAggregationStrategy();
+
+
         CsvDataFormat csv = new CsvDataFormat("|");
 
         onException(IllegalArgumentException.class)
-                .continued(true)
+                .continued(true) //continues the route
                 .log("Rollback local Transaction and continuing with the route")
-                .markRollbackOnlyLast()
+                .markRollbackOnlyLast() // mark only the last transaction in the route
                 .end();
 
         // testing aggregations with xpath
@@ -51,7 +65,7 @@ public class MySpringBootRouter extends RouteBuilder {
                 .log("Messages Aggregated tag CSV files: ${headers.tag} = ${body}")
                 .end();
 
-        //testing transactions with database h2 and sql component
+        //testing transactions with database h2 and sql component, creating local boundaries of transactions
         from("timer:hello?repeatCount=1").autoStartup(false)
                 .to("direct:beginTransaction")
                 .to("sql:select * from billionaires")
@@ -59,10 +73,10 @@ public class MySpringBootRouter extends RouteBuilder {
 
 
         from("direct:beginTransaction").autoStartup(false)
-                .transacted()
+                .transacted() //this init a transaction
                 .to("sql:update billionaires set career = null")
                 .log("Rows updated: ${headers.CamelSqlUpdateCount}")
-                .throwException(IllegalArgumentException.class, "error generated controlled")
+                .throwException(IllegalArgumentException.class, "error generated controlled") //throw exception
                 .end();
 
         //testing JPA
@@ -80,23 +94,20 @@ public class MySpringBootRouter extends RouteBuilder {
                 .end();
 
 
-        from("timer:hello?repeatCount=1").routeId("routeSsl").autoStartup(false)
-                .log("Consuming ws")
-                .setHeader(Exchange.HTTP_METHOD, constant("POST"))
-                .setHeader(Exchange.CONTENT_TYPE, constant("application/xml"))
-                .setHeader("host", constant("vhacapodjp01.hec.avianca.com:50001"))
-                .setHeader(Exchange.HTTP_URI, constant("https://vhacapodjp01.hec.avianca.com:50001/RESTAdapter/AMOS/SAP/Projects"))
-                .to("https4:consumews?sslContextParameters=#contextParameters")
-                .log("body: ${body}")
-                .end();
-
-
-        //testing JPA
+        //testing JPA and JMS
         from("jpa:com.example.fuseExample.Billionaries?consumeDelete=false&delay=5000").routeId("routeJpa")
-                //.marshal().json(JsonLibrary.Jackson)
-                .marshal().jaxb()
-                .log("the jpa body is ${body}")
+                .marshal().jaxb() //convert results from pojos to xml
+                .log(LoggingLevel.DEBUG, "the xml of results is ${body}")
+                .log("Sending Message")
+                .to("activemq:billionariesXml")
                 .end();
+
+        //testing jms
+        from("activemq:billionariesXml")
+                .log("Received Amq message from temporary broker")
+                .log("${body}")
+                .end();
+
 
     }
 }

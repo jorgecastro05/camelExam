@@ -2,11 +2,9 @@ package com.example.fuseExample;
 
 import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.camel.component.ActiveMQComponent;
-import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.model.dataformat.CsvDataFormat;
-import org.apache.camel.model.dataformat.JsonLibrary;
 import org.apache.camel.processor.aggregate.AggregationStrategy;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.springframework.context.annotation.Bean;
@@ -53,12 +51,12 @@ public class MySpringBootRouter extends RouteBuilder {
                 .end();
 
         // testing aggregations with xpath
-        from("file:dataIn?noop=true&antInclude=*.xml").routeId("route-XML-files").autoStartup(false)
+        from("file:dataIn?noop=true&antInclude=*.xml").routeId("route-XML-files")
                 .aggregate(aggregation).xpath("/hello/tag").completionTimeout(10)
                 .log("Messages Aggregated XML files: tag: ${headers.tag} = ${body}");
 
         //testing aggregations with csv dataformat
-        from("file:dataIn?noop=true&antInclude=*.csv").routeId("route-CSV-files").autoStartup(false)
+        from("file:dataIn?noop=true&antInclude=*.csv").routeId("route-CSV-files")
                 .unmarshal(csv) //this return a list of list
                 .split(body()) //this iterate for each element of list
                 .aggregate(csvAggregation).simple("${body.get(0)}").completionTimeout(10) //aggregate equal tags
@@ -66,31 +64,17 @@ public class MySpringBootRouter extends RouteBuilder {
                 .end();
 
         //testing transactions with database h2 and sql component, creating local boundaries of transactions
-        from("timer:hello?repeatCount=1").autoStartup(false)
+        from("timer:hello?repeatCount=1")
                 .to("direct:beginTransaction")
                 .to("sql:select * from billionaires")
                 .log("The result is: ${body}");
 
 
-        from("direct:beginTransaction").autoStartup(false)
+        from("direct:beginTransaction")
                 .transacted() //this init a transaction
                 .to("sql:update billionaires set career = null")
                 .log("Rows updated: ${headers.CamelSqlUpdateCount}")
                 .throwException(IllegalArgumentException.class, "error generated controlled") //throw exception
-                .end();
-
-        //testing JPA
-
-        from("timer:hello?delay=1000").routeId("myRouteLoadData").autoStartup(false)
-                .log("Init countries route")
-                .choice()
-                .when(method("countries", "isEmpty"))
-                .bean("transformationBean", "buildCountries")
-                .log("The new data is loaded")
-                .otherwise()
-                .log("The data is was charged")
-                .end()
-                .log("The countries are ${bean:countries?method=values}")
                 .end();
 
 

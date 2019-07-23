@@ -14,7 +14,6 @@ public class Billionaries implements Serializable {
 
     @Id
     private Integer id;
-
     @Column(name = "first_name")
     private String firstName;
     @Column(name = "last_name")

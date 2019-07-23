@@ -3,7 +3,9 @@ package com.example.fuseExample;
 import org.apache.camel.Exchange;
 import org.apache.camel.builder.xml.XPathBuilder;
 import org.apache.camel.processor.aggregate.AggregationStrategy;
+import org.springframework.stereotype.Component;
 
+@Component
 public class NamesAggregationStrategy implements AggregationStrategy{
 
 	public Exchange aggregate(Exchange oldExchange, Exchange newExchange) {

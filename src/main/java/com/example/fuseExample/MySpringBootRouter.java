@@ -2,7 +2,9 @@ package com.example.fuseExample;
 
 import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.camel.component.ActiveMQComponent;
+import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
+import org.apache.camel.Processor;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.model.dataformat.CsvDataFormat;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +20,10 @@ public class MySpringBootRouter extends RouteBuilder {
     CvsAggregationStrategy cvsAggregationStrategy;
     @Autowired
     NamesAggregationStrategy namesAggregationStrategy;
+
+    //sftp credentials from enviroment variables
+    private String username = System.getenv("LOGNAME");
+    private String password = System.getenv("mypass");
 
     @Bean
     public CsvDataFormat csvDataFormat() {
@@ -49,7 +55,7 @@ public class MySpringBootRouter extends RouteBuilder {
                 .log("Messages Aggregated XML files: tag: ${headers.tag} = ${body}")
                 .to("mock:endRouteXmlFiles");
 
-        //testing aggregations with csv dataformat
+        //testing split -  aggregations with csv dataformat
         from("file:dataIn?noop=true&antInclude=*.csv").routeId("route-CSV-files")
                 .unmarshal("csvDataFormat") //this return a list of list
                 .split(body()) //this iterate for each element of list
@@ -87,6 +93,52 @@ public class MySpringBootRouter extends RouteBuilder {
                 .log("${body}")
                 .end();
 
+        // testing ftp2 component (sftp)
+        from("sftp:localhost:22?username=" + username + "&password=" + password + "&noop=true").routeId("routeFtp")
+                .log("File received with name ${headers.CamelFileName}")
+                .to("mock:endFtpRoute")
+                .end();
 
+        // testing rest endpoint as consumer
+        from("restlet:http://localhost:8090/receiveMessages?restletMethod=POST").routeId("routeRest")
+                .log("Message received from rest endpoint ${body}")
+                .end();
+
+        // testing recipient list and direct component from json list of endpoints
+        from("direct:recipientListRoute").routeId("recipientListRoute")
+                .log("Invoking recipient List for json message ${body}")
+                .recipientList(jsonpath("$.endpoints.*"))
+                .end();
+
+        from("direct:foo").routeId("fooRoute")
+                .log("Hello from foo route").end();
+
+        from("direct:bar").routeId("barRoute")
+                .log("Hello from bar route").end();
+
+
+        // testing wiretap with shadow copy, this route creates a pojo and send it into wiretap that has a delay, meanwhile
+        // we change the pojo and is reflected into the wiretap route as a shadow copy.
+        from("direct:createPojo").routeId("createPojoRoute")
+                .process(exchange -> {
+                    Billionaries rich = new Billionaries();
+                    rich.setFirstName("Bruce");
+                    rich.setLastName("Wayne");
+                    rich.setCareer("Batman");
+                    exchange.getIn().setBody(rich);
+                })
+                .log("The billionary is ${body.toString()}")
+                .wireTap("direct:printAgainBillionary")
+                .process(exchange -> {
+                    Billionaries rich = exchange.getIn().getBody(Billionaries.class);
+                    rich.setCareer("CEO at wayne enterprises");
+                })
+                .end();
+
+        from("direct:printAgainBillionary").routeId("wiretapRoute")
+                .delay(1000)
+                .log("The billionary in wiretap is: ${body.toString()}")
+                .to("mock:endWiretap")
+                .end();
     }
 }

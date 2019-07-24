@@ -52,4 +52,11 @@ public class Billionaries implements Serializable {
     public void setCareer(String career) {
         this.career = career;
     }
+
+    @Override
+    public String toString() {
+        return "firstName='" + firstName + '\'' +
+                ", lastName='" + lastName + '\'' +
+                ", career='" + career + '\'';
+    }
 }

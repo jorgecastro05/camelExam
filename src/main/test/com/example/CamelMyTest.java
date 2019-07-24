@@ -3,7 +3,6 @@ package com.example;
 import com.example.fuseExample.MySpringBootApplication;
 import org.apache.camel.CamelContext;
 import org.apache.camel.EndpointInject;
-import org.apache.camel.Exchange;
 import org.apache.camel.ProducerTemplate;
 import org.apache.camel.builder.AdviceWithRouteBuilder;
 import org.apache.camel.component.mock.MockEndpoint;
@@ -16,8 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import java.util.List;
-import java.util.concurrent.TimeUnit;
+import static org.junit.Assert.fail;
 
 @RunWith(CamelSpringBootRunner.class)
 @SpringBootTest(classes = MySpringBootApplication.class)
@@ -30,18 +28,21 @@ public class CamelMyTest {
     @Autowired
     private ProducerTemplate template;
 
-    @EndpointInject(uri="mock:endRouteXmlFiles")
+    @EndpointInject(uri = "mock:endRouteXmlFiles")
     MockEndpoint endRouteXmlFiles;
 
-    @EndpointInject(uri="mock:endTransacionalRoute")
+    @EndpointInject(uri = "mock:endTransacionalRoute")
     MockEndpoint endTransacionalRoute;
 
+
+    @EndpointInject(uri = "mock:endWiretap")
+    MockEndpoint endWiretap;
 
     @Test
     public void testXmlConsumer() throws Exception {
         context.start();
         context.startRoute("route-XML-files");
-        endRouteXmlFiles.expectedBodiesReceived("I'm jorge","I'm camilo - I'm Richard - I'm Sandy");
+        endRouteXmlFiles.expectedBodiesReceived("I'm jorge", "I'm camilo - I'm Richard - I'm Sandy");
         endRouteXmlFiles.assertIsSatisfied();
     }
 
@@ -80,5 +81,52 @@ public class CamelMyTest {
         context.startRoute("routeJpa");
         Thread.sleep(30000);
     }
+
+    @Test
+    public void testFTPRoute() throws Exception {
+        String username = System.getenv("LOGNAME");
+        String password = System.getenv("mypass");
+        if (username == null || password == null) {
+            fail("username (LOGNAME) or password (mypass) variables " +
+                    "not found in enviroment variables, please add to test the stp component");
+        }
+        context.start();
+        context.startRoute("routeFtp");
+        // validate user and password on enviroment variables
+        MockEndpoint endRouteFtp = context.getEndpoint("mock:endFtpRoute", MockEndpoint.class);
+        endRouteFtp.expectedMinimumMessageCount(3);
+        endRouteFtp.assertIsSatisfied();
+    }
+
+
+    @Test
+    public void testRestRoute() throws Exception {
+        context.start();
+        context.startRoute("routeRest");
+        template.sendBody("restlet:http://localhost:8090/receiveMessages?restletMethod=POST",
+                "Hello world from testing !!!!");
+    }
+
+
+    @Test
+    public void testRecipientListRoute() throws Exception {
+        context.start();
+        context.startRoute("recipientListRoute");
+        context.startRoute("fooRoute");
+        context.startRoute("barRoute");
+        template.sendBody("direct:recipientListRoute",
+                "{\"endpoints\":[\"direct:foo\",\"direct:bar\"]}");
+    }
+
+    @Test
+    public void testWiretapRoute() throws Exception {
+        context.start();
+        context.startRoute("createPojoRoute");
+        context.startRoute("wiretapRoute");
+        template.sendBody("direct:createPojo", null);
+        endWiretap.expectedMinimumMessageCount(1);
+        endWiretap.assertIsSatisfied();
+    }
+
 
 }

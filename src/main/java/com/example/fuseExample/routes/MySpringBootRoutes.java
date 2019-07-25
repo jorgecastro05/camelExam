@@ -1,11 +1,16 @@
-package com.example.fuseExample;
+package com.example.fuseExample.routes;
 
+import com.example.fuseExample.transform.CvsAggregationStrategy;
+import com.example.fuseExample.transform.NamesAggregationStrategy;
+import com.example.fuseExample.domain.Billionaries;
+import com.example.fuseExample.domain.Greeting;
 import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.camel.component.ActiveMQComponent;
 import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
 import org.apache.camel.Processor;
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.model.dataformat.BindyType;
 import org.apache.camel.model.dataformat.CsvDataFormat;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -14,7 +19,7 @@ import org.springframework.stereotype.Component;
 import javax.jms.ConnectionFactory;
 
 @Component
-public class MySpringBootRouter extends RouteBuilder {
+public class MySpringBootRoutes extends RouteBuilder {
 
     @Autowired
     CvsAggregationStrategy cvsAggregationStrategy;
@@ -80,7 +85,7 @@ public class MySpringBootRouter extends RouteBuilder {
 
 
         //testing JPA and JMS
-        from("jpa:com.example.fuseExample.Billionaries?consumeDelete=false&delay=5000").routeId("routeJpa")
+        from("jpa:com.example.fuseExample.domain.Billionaries?consumeDelete=false&delay=5000").routeId("routeJpa")
                 .marshal().jaxb() //convert results from pojos to xml
                 .log(LoggingLevel.DEBUG, "the xml of results is ${body}")
                 .log("Sending Message")
@@ -120,25 +125,47 @@ public class MySpringBootRouter extends RouteBuilder {
         // testing wiretap with shadow copy, this route creates a pojo and send it into wiretap that has a delay, meanwhile
         // we change the pojo and is reflected into the wiretap route as a shadow copy.
         from("direct:createPojo").routeId("createPojoRoute")
-                .process(exchange -> {
-                    Billionaries rich = new Billionaries();
-                    rich.setFirstName("Bruce");
-                    rich.setLastName("Wayne");
-                    rich.setCareer("Batman");
-                    exchange.getIn().setBody(rich);
+                .process(new Processor() {
+                    @Override
+                    public void process(Exchange exchange) throws Exception {
+                        Billionaries rich = new Billionaries();
+                        rich.setFirstName("Bruce");
+                        rich.setLastName("Wayne");
+                        rich.setCareer("Batman");
+                        exchange.getIn().setBody(rich);
+                    }
                 })
-                .log("The billionary is ${body.toString()}")
-                .wireTap("direct:printAgainBillionary")
-                .process(exchange -> {
-                    Billionaries rich = exchange.getIn().getBody(Billionaries.class);
-                    rich.setCareer("CEO at wayne enterprises");
+                .log("The billionary is ${id} ${body.toString()}")
+                .wireTap("direct:printAgainBillionary").copy()
+                .process(new Processor() {
+                    @Override
+                    public void process(Exchange exchange) throws Exception {
+                        Billionaries rich = exchange.getIn().getBody(Billionaries.class);
+                        rich.setCareer("CEO at wayne enterprises");
+                    }
                 })
                 .end();
 
         from("direct:printAgainBillionary").routeId("wiretapRoute")
                 .delay(1000)
-                .log("The billionary in wiretap is: ${body.toString()}")
+                .log("The billionary in wiretap ${id} is: ${body.toString()}")
                 .to("mock:endWiretap")
                 .end();
+
+
+        //Test for Content-based routing
+        // we use the same csv files unmarshal with bindy and make a choice of type of greeting (bye|greeting)
+        from("file:dataIn?noop=true&antInclude=*.csv").routeId("contentBasedRoute")
+                .log("reading file ${headers.CamelFileName}")
+                .unmarshal().bindy(BindyType.Csv, Greeting.class)
+                .split(body())
+                .choice()
+                .when(simple("${body.message} == 'greeting'"))
+                .log("╯°□°╯ Hello from ${body.person}")
+                .when(simple("${body.message} == 'bye'"))
+                .log("ಠ_ಠ Bye from ${body.person}")
+                .to("mock:endRoute")
+                .end();
+
     }
 }

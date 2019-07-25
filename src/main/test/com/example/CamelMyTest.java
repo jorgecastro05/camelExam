@@ -38,6 +38,13 @@ public class CamelMyTest {
     @EndpointInject(uri = "mock:endWiretap")
     MockEndpoint endWiretap;
 
+    @EndpointInject(uri = "mock:endRoute")
+    MockEndpoint endRoute;
+
+
+    @EndpointInject(uri = "mock:endError")
+    MockEndpoint endError;
+
     @Test
     public void testXmlConsumer() throws Exception {
         context.start();
@@ -126,6 +133,35 @@ public class CamelMyTest {
         template.sendBody("direct:createPojo", null);
         endWiretap.expectedMinimumMessageCount(1);
         endWiretap.assertIsSatisfied();
+    }
+
+    @Test
+    public void testCBRRoute() throws Exception {
+        context.start();
+        context.startRoute("contentBasedRoute");
+        endRoute.expectedMinimumMessageCount(5);
+        endRoute.assertIsSatisfied();
+    }
+
+    @Test
+    public void testErrorHandling1() throws Exception {
+        context.start();
+        context.startRoute("errorHandling1");
+        template.sendBody("direct:errorHandllingRoute1", null);
+        endRoute.expectedMinimumMessageCount(1);
+        endRoute.assertIsSatisfied();
+    }
+
+
+    @Test
+    public void testErrorHandling2() throws Exception {
+        context.start();
+        context.startRoute("routeLetterChannel");
+        context.startRoute("routeErrorHandler");
+        template.sendBody("direct:letterChannel", null);
+        endError.expectedMinimumMessageCount(1);
+        endError.expectedBodiesReceived("An unhandled error occurred");
+        endError.assertIsSatisfied();
     }
 
 

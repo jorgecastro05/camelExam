@@ -1,4 +1,4 @@
-package com.example.fuseExample;
+package com.example.fuseExample.transform;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.builder.xml.XPathBuilder;

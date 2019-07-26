@@ -1,13 +1,14 @@
 package com.example.fuseExample.routes;
 
-import com.example.fuseExample.transform.CvsAggregationStrategy;
-import com.example.fuseExample.transform.NamesAggregationStrategy;
 import com.example.fuseExample.domain.Billionaries;
 import com.example.fuseExample.domain.Greeting;
+import com.example.fuseExample.transform.CvsAggregationStrategy;
+import com.example.fuseExample.transform.NamesAggregationStrategy;
 import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.camel.component.ActiveMQComponent;
 import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
+import org.apache.camel.Message;
 import org.apache.camel.Processor;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.model.dataformat.BindyType;
@@ -16,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 
+import javax.activation.DataHandler;
 import javax.jms.ConnectionFactory;
 
 @Component
@@ -69,7 +71,7 @@ public class MySpringBootRoutes extends RouteBuilder {
                 .end();
 
         //testing transactions with database h2 and sql component, creating local boundaries of transactions
-        from("timer:hello?repeatCount=1").routeId("routeInvokerTransaction")
+        from("timer:hello?repeatCount=1").routeId("routeInvokerTransaction").autoStartup(false)
                 .to("direct:beginTransaction")
                 .to("sql:select * from billionaires")
                 .log("The result is: ${body}")
@@ -99,7 +101,7 @@ public class MySpringBootRoutes extends RouteBuilder {
                 .end();
 
         // testing ftp2 component (sftp)
-        from("sftp:localhost:22?username=" + username + "&password=" + password + "&noop=true").routeId("routeFtp")
+        from("sftp:localhost:22?username=" + username + "&password=" + password + "&noop=true").routeId("routeFtp").autoStartup(false)
                 .log("File received with name ${headers.CamelFileName}")
                 .to("mock:endFtpRoute")
                 .end();
@@ -155,7 +157,7 @@ public class MySpringBootRoutes extends RouteBuilder {
 
         //Test for Content-based routing
         // we use the same csv files unmarshal with bindy and make a choice of type of greeting (bye|greeting)
-        from("file:dataIn?noop=true&antInclude=*.csv").routeId("contentBasedRoute")
+        from("file:dataIn?noop=true&antInclude=*.csv").routeId("contentBasedRoute").autoStartup(false)
                 .log("reading file ${headers.CamelFileName}")
                 .unmarshal().bindy(BindyType.Csv, Greeting.class)
                 .split(body())
@@ -166,6 +168,23 @@ public class MySpringBootRoutes extends RouteBuilder {
                 .log("ಠ_ಠ Bye from ${body.person}")
                 .to("mock:endRoute")
                 .end();
+
+        //test with attachments and pollencrich
+        from("direct:attachments").routeId("routeWithAttachments")
+                .log("Testing route with attachments")
+                .pollEnrich("file:dataIn?noop=true&antInclude=*.xml")
+                .process(new Processor() {
+                    @Override
+                    public void process(Exchange exchange) throws Exception {
+                        Message message = exchange.getIn();
+                        DataHandler dataHandler = new DataHandler(
+                                exchange.getIn().getBody(), "text/xml");
+                        message.addAttachment("persons", dataHandler);
+                    }
+                })
+                .to("mock:endRoute")
+                .end();
+
 
     }
 }

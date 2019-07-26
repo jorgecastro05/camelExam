@@ -1,0 +1,8 @@
+<routes xmlns="http://camel.apache.org/schema/spring">
+    <route id="routeHelloWorldXml">
+        <description>This route proves that we can load xml routes using the same context from spring boot</description>
+        <from uri="timer:camelXmlHello?period=1000"/>
+        <log message="Hello World from xml camel spring ${exchangeProperty.CamelTimerCounter} !!"/>
+        <to uri="mock:endRoute"/>
+    </route>
+</routes>

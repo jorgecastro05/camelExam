@@ -11,16 +11,6 @@ public class ErrorHandlingRoutes extends RouteBuilder {
     @Override
     public void configure() throws Exception {
 
-        errorHandler(deadLetterChannel("direct:errorHandler")
-                .useOriginalMessage()
-                .onPrepareFailure(new Processor() {
-                    @Override
-                    public void process(Exchange exchange) throws Exception {
-                        exchange.getIn().setBody("An unhandled error occurred");
-                    }
-                }).logStackTrace(true));
-
-
         //try catch testing
         from("direct:errorHandllingRoute1").routeId("errorHandling1")
                 .log("Testing try catch error handling")
@@ -37,14 +27,21 @@ public class ErrorHandlingRoutes extends RouteBuilder {
                 .end();
 
 
-        //testing using a dead letter queue and a route policy
+        //testing using a dead letter inside the route to apply only on this route
         from("direct:letterChannel").routeId("routeLetterChannel")
+                .errorHandler(deadLetterChannel("direct:errorHandler")
+                        .onPrepareFailure(new Processor() {
+                            @Override
+                            public void process(Exchange exchange) throws Exception {
+                                exchange.getIn().setBody("An unhandled error occurred");
+                            }
+                        }).logStackTrace(true))
                 .log("Generating an exception to be trown by the dead letter queue")
                 .throwException(IllegalArgumentException.class, "The credentials are invalid")
                 .end();
 
         from("direct:errorHandler").routeId("routeErrorHandler")
-                .log("${body}")
+                .log("The error is: ${body}")
                 .to("mock:endError")
                 .end();
 

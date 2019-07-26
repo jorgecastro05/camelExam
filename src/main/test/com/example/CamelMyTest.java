@@ -3,6 +3,7 @@ package com.example;
 import com.example.fuseExample.MySpringBootApplication;
 import org.apache.camel.CamelContext;
 import org.apache.camel.EndpointInject;
+import org.apache.camel.Exchange;
 import org.apache.camel.ProducerTemplate;
 import org.apache.camel.builder.AdviceWithRouteBuilder;
 import org.apache.camel.component.mock.MockEndpoint;
@@ -15,7 +16,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import static org.junit.Assert.fail;
+import java.awt.color.ICC_Profile;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.*;
 
 @RunWith(CamelSpringBootRunner.class)
 @SpringBootTest(classes = MySpringBootApplication.class)
@@ -160,8 +166,26 @@ public class CamelMyTest {
         context.startRoute("routeErrorHandler");
         template.sendBody("direct:letterChannel", null);
         endError.expectedMinimumMessageCount(1);
-        endError.expectedBodiesReceived("An unhandled error occurred");
+        assertEquals("An unhandled error occurred", endError.getExchanges().get(0).getIn().getBody() );
         endError.assertIsSatisfied();
+    }
+
+    @Test
+    public void testAttachments() throws Exception {
+        context.start();
+        context.startRoute("routeWithAttachments");
+        template.sendBody("direct:attachments", null);
+        List<Exchange> exchanges = endRoute.getExchanges();
+        assertNotNull("There is not a message in attachments", exchanges.get(0).getIn().getAttachment("persons"));
+        endRoute.assertIsSatisfied();
+    }
+
+    @Test
+    public void testRouteXml() throws Exception {
+        context.start();
+        context.startRoute("routeHelloWorldXml");
+        endRoute.expectedMinimumMessageCount(5);
+        endRoute.assertIsSatisfied();
     }
 
 

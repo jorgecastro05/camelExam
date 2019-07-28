@@ -10,6 +10,7 @@ import org.apache.camel.component.mock.MockEndpoint;
 import org.apache.camel.model.RouteDefinition;
 import org.apache.camel.test.spring.CamelSpringBootRunner;
 import org.apache.camel.test.spring.UseAdviceWith;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -71,6 +72,7 @@ public class CamelMyTest {
             }
         });
         context.start();
+        context.stopRoute("contentBasedRoute");
         context.startRoute("route-CSV-files");
         MockEndpoint mockEndRoute = context.getEndpoint("mock:endRouteCsvFiles", MockEndpoint.class);
         mockEndRoute.expectedMessageCount(2);
@@ -92,10 +94,10 @@ public class CamelMyTest {
     public void testJpaRoute() throws Exception {
         context.start();
         context.startRoute("routeJpa");
-        Thread.sleep(30000);
     }
 
     @Test
+    @Ignore
     public void testFTPRoute() throws Exception {
         String username = System.getenv("LOGNAME");
         String password = System.getenv("mypass");
@@ -105,7 +107,7 @@ public class CamelMyTest {
         }
         context.start();
         context.startRoute("routeFtp");
-        // validate user and password on enviroment variables
+        // validate user and password on environment variables
         MockEndpoint endRouteFtp = context.getEndpoint("mock:endFtpRoute", MockEndpoint.class);
         endRouteFtp.expectedMinimumMessageCount(3);
         endRouteFtp.assertIsSatisfied();
@@ -172,6 +174,7 @@ public class CamelMyTest {
 
     @Test
     public void testAttachments() throws Exception {
+    	endRoute.reset();
         context.start();
         context.startRoute("routeWithAttachments");
         template.sendBody("direct:attachments", null);
@@ -185,6 +188,15 @@ public class CamelMyTest {
         context.start();
         context.startRoute("routeHelloWorldXml");
         endRoute.expectedMinimumMessageCount(5);
+        endRoute.assertIsSatisfied();
+    }
+    
+    
+    @Test
+    public void testRouteOnException() throws Exception {
+        context.start();
+        context.startRoute("routeOnException");
+        template.sendBody("direct:routeOnException", "Testing routes OnException");
         endRoute.assertIsSatisfied();
     }
 

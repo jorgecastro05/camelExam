@@ -6,13 +6,18 @@ import com.example.fuseExample.transform.CvsAggregationStrategy;
 import com.example.fuseExample.transform.NamesAggregationStrategy;
 import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.camel.component.ActiveMQComponent;
+import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
 import org.apache.camel.Message;
 import org.apache.camel.Processor;
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.model.ProcessorDefinition;
 import org.apache.camel.model.dataformat.BindyType;
 import org.apache.camel.model.dataformat.CsvDataFormat;
+import org.apache.camel.processor.aggregate.AggregationStrategy;
+import org.apache.camel.processor.aggregate.GroupedBodyAggregationStrategy;
+import org.apache.camel.spi.InterceptStrategy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
@@ -49,6 +54,8 @@ public class MySpringBootRoutes extends RouteBuilder {
     @Override
     public void configure() {
         getContext().setAutoStartup(false);
+        getContext().setStreamCaching(true);
+       
 
         onException(IllegalArgumentException.class)
                 .continued(true) //continues the route
@@ -57,13 +64,13 @@ public class MySpringBootRoutes extends RouteBuilder {
                 .end();
 
         // testing aggregations with xpath
-        from("file:dataIn?noop=true&antInclude=*.xml").routeId("route-XML-files")
+        from("file:dataIn?noop=true&antInclude=*.xml&sortBy=file:name").routeId("route-XML-files")
                 .aggregate(namesAggregationStrategy).xpath("/hello/tag").completionTimeout(10)
                 .log("Messages Aggregated XML files: tag: ${headers.tag} = ${body}")
                 .to("mock:endRouteXmlFiles");
 
         //testing split -  aggregations with csv dataformat
-        from("file:dataIn?noop=true&antInclude=*.csv").routeId("route-CSV-files")
+        from("file:dataIn?noop=true&antInclude=*.csv&sortBy=file:name").routeId("route-CSV-files")
                 .unmarshal("csvDataFormat") //this return a list of list
                 .split(body()) //this iterate for each element of list
                 .aggregate(cvsAggregationStrategy).simple("${body.get(0)}").completionTimeout(10) //aggregate equal tags
@@ -87,11 +94,11 @@ public class MySpringBootRoutes extends RouteBuilder {
 
 
         //testing JPA and JMS
-        from("jpa:com.example.fuseExample.domain.Billionaries?consumeDelete=false&delay=5000").routeId("routeJpa")
+        from("jpa:com.example.fuseExample.domain.Billionaries?consumeDelete=false&delay=100").routeId("routeJpa")
                 .marshal().jaxb() //convert results from pojos to xml
                 .log(LoggingLevel.DEBUG, "the xml of results is ${body}")
                 .log("Sending Message")
-                .to("activemq:billionariesXml")
+                .to("activemq:billionariesXml").id("activemqEndpoint")
                 .end();
 
         //testing JMS
@@ -137,7 +144,7 @@ public class MySpringBootRoutes extends RouteBuilder {
                         exchange.getIn().setBody(rich);
                     }
                 })
-                .log("The billionary is ${id} ${body.toString()}")
+                .log("The billionary is ${threadName} - ${id} ${body.toString()}")
                 .wireTap("direct:printAgainBillionary").copy()
                 .process(new Processor() {
                     @Override
@@ -150,7 +157,7 @@ public class MySpringBootRoutes extends RouteBuilder {
 
         from("direct:printAgainBillionary").routeId("wiretapRoute")
                 .delay(1000)
-                .log("The billionary in wiretap ${id} is: ${body.toString()}")
+                .log("The billionary in wiretap ${threadName} - ${id} is: ${body.toString()}")
                 .to("mock:endWiretap")
                 .end();
 
@@ -163,9 +170,9 @@ public class MySpringBootRoutes extends RouteBuilder {
                 .split(body())
                 .choice()
                 .when(simple("${body.message} == 'greeting'"))
-                .log("╯°□°╯ Hello from ${body.person}")
+                .log("Hello from ${body.person}")
                 .when(simple("${body.message} == 'bye'"))
-                .log("ಠ_ಠ Bye from ${body.person}")
+                .log("Bye from ${body.person}")
                 .to("mock:endRoute")
                 .end();
 
@@ -184,7 +191,15 @@ public class MySpringBootRoutes extends RouteBuilder {
                 })
                 .to("mock:endRoute")
                 .end();
-
-
+        
+        //testing filters
+        from("file:dataIn?noop=true&antInclude=*.xml&sortBy=file:name").routeId("routeTestingFilter")
+        .log("reading ${file:name}")
+        .aggregate().constant(true).completionSize(constant(4)).aggregationStrategy(new GroupedBodyAggregationStrategy())
+        .split(body())
+        .filter(xpath("/hello[tag='bye']"))
+        .transform(xpath("/hello/message",String.class))
+        .to("log:aggregations").id("finalog")
+        .end();
     }
 }

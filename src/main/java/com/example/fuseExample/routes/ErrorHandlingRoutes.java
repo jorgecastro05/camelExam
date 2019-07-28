@@ -44,6 +44,16 @@ public class ErrorHandlingRoutes extends RouteBuilder {
                 .log("The error is: ${body}")
                 .to("mock:endError")
                 .end();
+        
+        
+        from("direct:routeOnException").routeId("routeOnException")
+        	.onException(IllegalArgumentException.class)
+        	.handled(true)
+        	.log("catched an Illegal ArgumentException: ${exception.message}")
+        	.end() //end onException
+        	.log("received Message: ${body}")
+        	.throwException(IllegalArgumentException.class, "the messsage must be null")
+        .end();
 
     }
 }

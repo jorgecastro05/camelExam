@@ -1,14 +1,14 @@
 package com.example.fuseExample.domain;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.Table;
+import org.apache.camel.component.jpa.Consumed;
+
+import javax.persistence.*;
 import javax.xml.bind.annotation.XmlRootElement;
 import java.io.Serializable;
 
 @Entity
 @Table(name = "billionaires")
+@NamedQuery(name="findAllBillionaries", query="SELECT b FROM Billionaries b")
 @XmlRootElement
 public class Billionaries implements Serializable {
 
@@ -58,5 +58,10 @@ public class Billionaries implements Serializable {
         return "firstName='" + firstName + '\'' +
                 ", lastName='" + lastName + '\'' +
                 ", career='" + career + '\'';
+    }
+
+    @Consumed
+    public void changeCareer(){
+        this.career = null;
     }
 }

@@ -6,18 +6,14 @@ import com.example.fuseExample.transform.CvsAggregationStrategy;
 import com.example.fuseExample.transform.NamesAggregationStrategy;
 import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.camel.component.ActiveMQComponent;
-import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
 import org.apache.camel.Message;
 import org.apache.camel.Processor;
 import org.apache.camel.builder.RouteBuilder;
-import org.apache.camel.model.ProcessorDefinition;
 import org.apache.camel.model.dataformat.BindyType;
 import org.apache.camel.model.dataformat.CsvDataFormat;
-import org.apache.camel.processor.aggregate.AggregationStrategy;
 import org.apache.camel.processor.aggregate.GroupedBodyAggregationStrategy;
-import org.apache.camel.spi.InterceptStrategy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
@@ -55,6 +51,7 @@ public class MySpringBootRoutes extends RouteBuilder {
     public void configure() {
         getContext().setAutoStartup(false);
         getContext().setStreamCaching(true);
+
        
 
         onException(IllegalArgumentException.class)
@@ -65,7 +62,7 @@ public class MySpringBootRoutes extends RouteBuilder {
 
         // testing aggregations with xpath
         from("file:dataIn?noop=true&antInclude=*.xml&sortBy=file:name").routeId("route-XML-files")
-                .aggregate(namesAggregationStrategy).xpath("/hello/tag").completionTimeout(10)
+                .aggregate(namesAggregationStrategy).xpath("/hello/tag").completionTimeout(10000).completionSize(10)
                 .log("Messages Aggregated XML files: tag: ${headers.tag} = ${body}")
                 .to("mock:endRouteXmlFiles");
 
@@ -73,7 +70,7 @@ public class MySpringBootRoutes extends RouteBuilder {
         from("file:dataIn?noop=true&antInclude=*.csv&sortBy=file:name").routeId("route-CSV-files")
                 .unmarshal("csvDataFormat") //this return a list of list
                 .split(body()) //this iterate for each element of list
-                .aggregate(cvsAggregationStrategy).simple("${body.get(0)}").completionTimeout(10) //aggregate equal tags
+                .aggregate(cvsAggregationStrategy).simple("${body.get(0)}").completionTimeout(10000) //aggregate equal tags
                 .log("Messages Aggregated tag CSV files: ${headers.tag} = ${body}")
                 .end();
 
@@ -94,7 +91,7 @@ public class MySpringBootRoutes extends RouteBuilder {
 
 
         //testing JPA and JMS
-        from("jpa:com.example.fuseExample.domain.Billionaries?consumeDelete=false&delay=100").routeId("routeJpa")
+        from("jpa:com.example.fuseExample.domain.Billionaries?consumeDelete=false&delay=100&namedQuery=findAllBillionaries").routeId("routeJpa")
                 .marshal().jaxb() //convert results from pojos to xml
                 .log(LoggingLevel.DEBUG, "the xml of results is ${body}")
                 .log("Sending Message")

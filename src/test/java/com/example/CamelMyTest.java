@@ -17,11 +17,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import java.awt.color.ICC_Profile;
-import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.*;
 
 @RunWith(CamelSpringBootRunner.class)
@@ -92,8 +89,18 @@ public class CamelMyTest {
 
     @Test
     public void testJpaRoute() throws Exception {
+        RouteDefinition csvRouteDefinition = context.getRouteDefinition("routeJpa");
+        csvRouteDefinition.adviceWith(context, new AdviceWithRouteBuilder() {
+            @Override
+            public void configure() throws Exception {
+                weaveById("activemqEndpoint").replace().to("mock:endJpaRoute");
+                weaveAddLast().log("message get: ${body}");
+            }
+        });
         context.start();
         context.startRoute("routeJpa");
+        context.getEndpoint("mock:endJpaRoute", MockEndpoint.class).expectedMinimumMessageCount(1);
+        context.getEndpoint("mock:endJpaRoute", MockEndpoint.class).assertIsSatisfied();
     }
 
     @Test

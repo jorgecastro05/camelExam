@@ -1,14 +1,12 @@
 package com.example;
 
-import static org.junit.Assert.assertEquals;
-
+import com.example.fuseExample.MySpringBootApplication;
 import org.apache.activemq.filter.ConstantExpression;
 import org.apache.camel.CamelContext;
 import org.apache.camel.ProducerTemplate;
 import org.apache.camel.builder.AdviceWithRouteBuilder;
 import org.apache.camel.builder.NotifyBuilder;
 import org.apache.camel.component.mock.MockEndpoint;
-import org.apache.camel.language.Constant;
 import org.apache.camel.model.RouteDefinition;
 import org.apache.camel.test.spring.CamelSpringBootRunner;
 import org.apache.camel.test.spring.UseAdviceWith;
@@ -19,8 +17,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.context.SpringBootTest;
-
-import com.example.fuseExample.MySpringBootApplication;
 
 @RunWith(CamelSpringBootRunner.class)
 @SpringBootTest(classes = MySpringBootApplication.class)
